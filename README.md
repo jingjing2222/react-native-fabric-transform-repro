@@ -12,7 +12,8 @@ Android Fabric crash in React Native 0.85.3 when
 The GIFs above are provided for inline README preview. The as-is app crashes
 after clearing a `transform` prop that was previously updated by Native
 Animated. The to-be app applies the same repro flow with a patched React Native
-runtime.
+runtime and no longer crashes. Resetting the animated transform back to its
+default position requires a separate Java Native Animated restore change.
 
 ## Crash Summary
 
@@ -44,8 +45,8 @@ java.lang.AssertionError: Assertion failed
 
 ## Patch Diff Summary
 
-The patch separates two different `null` cases in the Android Fabric
-synchronous mount props path.
+The patch focuses on the Android Fabric synchronous mount props override merge
+path.
 
 For a regular Fabric props update, `transform: null` or `opacity: null` can be a
 stale commit that arrives after Native Animated has already applied a newer
@@ -54,21 +55,22 @@ continues to win. The patch allows `ReadableType.Null` as an incoming value
 shape for stored `transform` and `opacity` overrides, then writes the stored
 Native Animated value back into the props update.
 
-For an explicit Native Animated restore, `PropsAnimatedNode.restoreDefaultValues`
-now sends a synchronous `null` payload for the animated props it owns. For
-example, an animated style transform restore sends `transform: null`. That sync
-restore path removes only stored `transform` / `opacity` override keys before
-updating the native view, so clearing the animated prop resets the view instead
-of keeping the last animated value forever. Other `null` props are left as-is.
+The stored override clear logic is scoped to `transform` / `opacity` only. If a
+synchronous Native Animated path sends `transform: null` or `opacity: null`,
+that prop is removed from the stored override map. Other `null` props are left
+as-is because they may be meaningful view prop values.
 
-This keeps the feature flag's original intent intact while preserving clear
-semantics:
+This keeps the feature flag's original intent intact while avoiding generic
+`null` removal:
 
 - Regular Fabric update with `transform: null` or `opacity: null`: treat as a
   stale value shape and keep the stored Native Animated override.
-- Native Animated restore with `transform: null` or `opacity: null`: treat as an
-  explicit clear signal, remove the stored override for that prop, and reset the
-  native view.
+- Synchronous Native Animated update with `transform: null` or `opacity: null`:
+  treat as an explicit clear signal and remove the stored override for that prop.
+
+The Java Native Animated `restoreDefaultValues()` implementation is intentionally
+not included in this repro patch; it is planned as a separate React Native
+change.
 
 ## Repro Apps
 
