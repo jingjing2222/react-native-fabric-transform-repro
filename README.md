@@ -1,55 +1,39 @@
-# React Native 0.85.3 Fabric Sync Props Transform Repro
+# React Native Android Fabric Transform Crash Repro
 
-This repository contains two Android-focused React Native 0.85.3 apps with the
-same repro screen.
+| As-is | To-be |
+| --- | --- |
+| ![Baseline Android Fabric transform crash repro](https://raw.githubusercontent.com/jingjing2222/react-native-fabric-transform-repro/main/crashed.gif) | ![Patched Android Fabric transform result](https://raw.githubusercontent.com/jingjing2222/react-native-fabric-transform-repro/main/patched.gif) |
+| [crashed.gif](./crashed.gif) | [patched.gif](./patched.gif) |
 
-- `repro-crash`: unpatched crash repro app
-- `repro-patched`: patched comparison app, using a Yarn patch for
-  `react-native@0.85.3` and a Gradle composite build so Android uses the patched
-  React Native source instead of the published Maven AAR
+This repository is the minimal reproduction and visual explanation for an
+Android Fabric crash in React Native 0.85.3 when
+`overrideBySynchronousMountPropsAtMountingAndroid` is enabled.
 
-## Crash Hypothesis
+The GIFs above are provided for inline README preview. The as-is app crashes
+after clearing a `transform` prop that was previously updated by Native
+Animated. The to-be app applies the same repro flow with a patched React Native
+runtime.
 
-This repro targets the Android Fabric synchronous mount props override path,
-enabled by `overrideBySynchronousMountPropsAtMountingAndroid`.
+## Crash Summary
 
-Both Android apps load React Native with a custom Android feature flag provider
-from `MainApplication`, before the React instance is created. That provider keeps
-the stable New Architecture defaults and overrides
-`overrideBySynchronousMountPropsAtMountingAndroid` to `true`, so the repro uses
-the synchronous mount props override path even when React Native's stable
-release-level defaults keep it disabled.
+Both apps enable `overrideBySynchronousMountPropsAtMountingAndroid` before the
+React instance is created. This forces Android Fabric to use the synchronous
+mount props override path for the repro.
 
-With `useNativeDriver: true`, Native Animated sends animated props through the
-direct manipulation path:
+The issue being demonstrated is a Fabric/Native Animated edge case:
 
-1. `NativeAnimatedNodesManager` produces a `transform` prop for the animated
-   view.
-2. `UIManager::synchronouslyUpdateViewOnUIThread` forwards that prop through
-   `Scheduler` and `FabricMountingManager`.
-3. Android receives it in `FabricUIManager.synchronouslyUpdateViewOnUIThread`.
-4. `SynchronousMountItem` calls
-   `SurfaceMountingManager.storeSynchronousMountPropsOverride`, then
-   `updatePropsSynchronously`.
+1. `useNativeDriver: true` sends a native animated `transform` update through
+   the direct manipulation path.
+2. Android stores that synchronous `transform` override for the view tag.
+3. React later sends a normal Fabric props update that removes `transform` from
+   the same tag.
+4. Fabric represents that removal as `transform: null`.
+5. The Android synchronous override merge path still has the previous stored
+   `transform` value and assumes the incoming value has the same non-null shape.
 
-When the feature flag is enabled, Android stores those synchronous Native
-Animated props per tag so a later stale Fabric mount update cannot overwrite the
-latest native animated value.
-
-This repro then removes `transform` from React props for the same tag. Fabric
-represents that removal as a `transform: null` props update. When the regular
-Fabric update reaches `SurfaceMountingManager.updateProps`, the sync override
-code sees stored synchronous props for that tag and tries to merge the stored
-animated `transform` with the incoming props update. That merge path assumes a
-prop that exists on both sides has the expected non-null type. For `transform`,
-it expects an array because the stored Native Animated value was an array.
-
-The crash happens because the incoming Fabric update still contains the
-`transform` key, but its value is `null`. The synchronous override merge path
-does not handle that removal case before asserting the incoming value type. On
-Android, this fails inside
-`SurfaceMountingManager.overridePropsReadableMap` while dispatching the Fabric
-mount item:
+For `transform`, the stored Native Animated value is an array. The incoming
+Fabric value is `null`, so the as-is app crashes while dispatching the mount
+item:
 
 ```text
 java.lang.AssertionError: Assertion failed
@@ -58,67 +42,91 @@ java.lang.AssertionError: Assertion failed
   at com.facebook.react.fabric.mounting.mountitems.IntBufferBatchMountItem.execute
 ```
 
-The patched app fixes the stale override case generically: when an incoming
-Fabric props update contains a stored synchronous prop key with a `null` value,
-the patch removes that key from the stored synchronous override map and leaves
-the `null` update intact. This preserves React's prop-removal semantics for
-`transform`, `opacity`, and any future props stored in that override map.
+## Patch Diff Summary
 
-The patched app also removes the per-tag synchronous override entry once all
-stored keys have been cleared.
+The patch changes the synchronous override merge behavior in
+`SurfaceMountingManager.kt`.
+
+When a regular Fabric props update contains a key that also exists in the stored
+synchronous override map, and the incoming value is `null`, the patch treats it
+as a real React prop removal:
+
+- remove that key from the stored synchronous override map;
+- keep the incoming `null` value in the Fabric props update;
+- remove the per-tag override entry when all stored keys have been cleared.
+
+The fix is generic for the current synchronous override map. It is not limited
+to `transform`; it also preserves the same removal semantics for `opacity` and
+future props stored by this path.
+
+## Repro Apps
+
+This repository contains two React Native CLI workspaces generated with React
+Native `0.85.3`.
+
+- `repro-crash`: as-is app that reproduces the crash.
+- `repro-patched`: to-be app that applies a Yarn patch to `react-native@0.85.3`.
+
+Both apps expose the same screen:
+
+- `Start native transform`: starts a native-driver `transform` animation.
+- `Clear transform`: removes the `transform` prop from the same view.
 
 ## Patch Layout
 
-The patch lives in:
+The Yarn patch lives here:
 
 ```text
 repro-patched/.yarn/patches/react-native-npm-0.85.3-2292697f2f.patch
 ```
 
-`repro-patched/android/settings.gradle` substitutes Android dependencies so the
-patched app builds React Native from `node_modules/react-native`:
+The patched app also uses a Gradle composite build so Android consumes the
+patched React Native source from `node_modules` instead of the published Maven
+AAR:
 
 ```text
 com.facebook.react:react-android -> project(:packages:react-native:ReactAndroid)
 com.facebook.react:hermes-android -> project(:packages:react-native:ReactAndroid:hermes-engine)
 ```
 
-Without that substitution, the Android app can still use the published
-`react-android` Maven AAR, which means the Yarn patch is present in
-`node_modules` but not present in the installed APK.
+Without this substitution, the Yarn patch exists in `node_modules`, but the
+installed Android app can still run against the unpatched `react-android` AAR.
 
-## Repro Steps
+## Environment
 
-1. Run the app.
-2. Press `Start native transform`.
-3. Press `Clear transform`.
+Yarn is configured for predictable `node_modules` installs:
 
-This sends a native-driver `transform` update to a view, then removes
-`transform` from props for the same tag.
+```text
+yarn 4.13.0
+nodeLinker: node-modules
+```
 
-## Recordings
+Both apps use Android New Architecture and Hermes:
 
-- [crashed.gif](./crashed.gif)
-- [patched.gif](./patched.gif)
+```text
+newArchEnabled=true
+hermesEnabled=true
+```
 
-![Crash repro](./crashed.gif)
+## Run
 
-![Patched repro](./patched.gif)
-
-## Commands
+As-is:
 
 ```sh
 cd repro-crash
+yarn install
 yarn android
 ```
+
+To-be:
 
 ```sh
 cd repro-patched
+yarn install
 yarn android
 ```
 
-If the patched app still shows the old crash, clear the previous Android build
-and rebuild the source-based React Native dependency:
+Clean Android rebuild for the patched app:
 
 ```sh
 cd repro-patched/android
