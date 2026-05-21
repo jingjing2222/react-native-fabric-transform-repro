@@ -6,7 +6,7 @@ import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint
-import com.facebook.react.internal.featureflags.ReactNativeFeatureFlagsOverrides_RNOSS_Stable_Android
+import com.facebook.react.internal.featureflags.ReactNativeNewArchitectureFeatureFlagsDefaults
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.react.views.view.setEdgeToEdgeFeatureFlagOn
 import com.facebook.soloader.SoLoader
@@ -39,8 +39,10 @@ class MainApplication : Application(), ReactApplication {
 
     if (BuildConfig.IS_NEW_ARCHITECTURE_ENABLED) {
       val featureFlags =
-          object : ReactNativeFeatureFlagsOverrides_RNOSS_Stable_Android() {
+          object : ReactNativeNewArchitectureFeatureFlagsDefaults() {
             override fun overrideBySynchronousMountPropsAtMountingAndroid(): Boolean = true
+
+            override fun useFabricInterop(): Boolean = true
           }
       val loadWithFeatureFlags =
           DefaultNewArchitectureEntryPoint::class.java.declaredMethods.first {

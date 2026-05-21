@@ -11,8 +11,11 @@ screen.
 This repro targets the Android Fabric synchronous mount props override path
 enabled by `overrideBySynchronousMountPropsAtMountingAndroid`.
 
-Both Android apps force this flag to `true` in `MainApplication` so the repro
-uses the synchronous mount props override path even when React Native's stable
+Both Android apps load React Native with a custom Android feature flag provider
+from `MainApplication`, before the React instance is created. That provider keeps
+the stable New Architecture defaults and overrides
+`overrideBySynchronousMountPropsAtMountingAndroid` to `true`, so the repro uses
+the synchronous mount props override path even when React Native's stable
 release-level defaults keep it disabled.
 
 With `useNativeDriver: true`, Native Animated sends animated props through the
