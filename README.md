@@ -57,9 +57,9 @@ Native Animated value back into the props update.
 For an explicit Native Animated restore, `PropsAnimatedNode.restoreDefaultValues`
 now sends a synchronous `null` payload for the animated props it owns. For
 example, an animated style transform restore sends `transform: null`. That sync
-restore path removes the matching key from the stored override map before
+restore path removes only stored `transform` / `opacity` override keys before
 updating the native view, so clearing the animated prop resets the view instead
-of keeping the last animated value forever.
+of keeping the last animated value forever. Other `null` props are left as-is.
 
 This keeps the feature flag's original intent intact while preserving clear
 semantics:
@@ -67,7 +67,8 @@ semantics:
 - Regular Fabric update with `transform: null` or `opacity: null`: treat as a
   stale value shape and keep the stored Native Animated override.
 - Native Animated restore with `transform: null` or `opacity: null`: treat as an
-  explicit clear signal, remove the stored override, and reset the native view.
+  explicit clear signal, remove the stored override for that prop, and reset the
+  native view.
 
 ## Repro Apps
 
