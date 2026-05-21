@@ -7289,7 +7289,7 @@ __metadata:
 
 "react-native@patch:react-native@npm%3A0.85.3#~/.yarn/patches/react-native-npm-0.85.3-2292697f2f.patch":
   version: 0.85.3
-  resolution: "react-native@patch:react-native@npm%3A0.85.3#~/.yarn/patches/react-native-npm-0.85.3-2292697f2f.patch::version=0.85.3&hash=1ba367"
+  resolution: "react-native@patch:react-native@npm%3A0.85.3#~/.yarn/patches/react-native-npm-0.85.3-2292697f2f.patch::version=0.85.3&hash=45b782"
   dependencies:
     "@react-native/assets-registry": "npm:0.85.3"
     "@react-native/codegen": "npm:0.85.3"
@@ -7334,7 +7334,7 @@ __metadata:
       optional: true
   bin:
     react-native: cli.js
-  checksum: 10c0/2babcabe3eb412630608120b90454f9fff34b5fc681216bbea63e6ad5c8ded66b25de1d935736b8726e0c4d3d790256f42a2f7660a90599edf8068ce848d887b
+  checksum: 10c0/0c022ca66b0698af870302b86ba14ddba007866c01eadf79d8d3f550a419f228381fb59884284c3aaf6a11fa90d26411cbe5402dc3d9d8ba278d84cea5d6a236
   languageName: node
   linkType: hard
 

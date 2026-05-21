@@ -1,8 +1,18 @@
 diff --git a/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt b/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
-index 9224e19ddf3b1793162ff2ce86f950eff70fb06a..55023aff887c7e7f41bb2e1b7c528b380a34f2c2 100644
+index 9224e19ddf3b1793162ff2ce86f950eff70fb06a..d1fd9e49bdd5833db859b282225a8fa9f5c4dc2a 100644
 --- a/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
 +++ b/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
-@@ -1186,11 +1186,18 @@ internal constructor(
+@@ -618,6 +618,9 @@ internal constructor(
+       modifiedProps.merge(props)
+       val directPropsMap = checkNotNull(tagToSynchronousMountProps[reactTag])
+       overridePropsReadableMap(directPropsMap, modifiedProps)
++      if (directPropsMap.isEmpty()) {
++        tagToSynchronousMountProps.remove(reactTag)
++      }
+       viewState.currentProps = ReactStylesDiffMap(modifiedProps)
+     } else {
+       viewState.currentProps = ReactStylesDiffMap(props)
+@@ -1186,11 +1189,18 @@ internal constructor(
      }
  
      private fun overridePropsReadableMap(
