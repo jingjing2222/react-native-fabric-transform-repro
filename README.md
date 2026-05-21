@@ -2,7 +2,7 @@
 
 | As-is | To-be |
 | --- | --- |
-| ![Baseline Android Fabric transform crash repro](https://raw.githubusercontent.com/jingjing2222/react-native-fabric-transform-repro/main/crashed.gif) | ![Patched Android Fabric transform result](https://raw.githubusercontent.com/jingjing2222/react-native-fabric-transform-repro/main/patched.gif) |
+| <img src="https://raw.githubusercontent.com/jingjing2222/react-native-fabric-transform-repro/main/crashed.gif" alt="Baseline Android Fabric transform crash repro" width="320" /> | <img src="https://raw.githubusercontent.com/jingjing2222/react-native-fabric-transform-repro/main/patched.gif" alt="Patched Android Fabric transform result" width="320" /> |
 | [crashed.gif](./crashed.gif) | [patched.gif](./patched.gif) |
 
 This repository is the minimal reproduction and visual explanation for an
