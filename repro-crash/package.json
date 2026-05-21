@@ -2,6 +2,7 @@
   "name": "ReproCrash",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "yarn@4.13.0",
   "scripts": {
     "android": "react-native run-android",
     "android:release": "react-native run-android -- --mode release",
@@ -12,9 +13,9 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native/new-app-screen": "0.85.3",
     "react": "19.2.3",
     "react-native": "0.85.3",
-    "@react-native/new-app-screen": "0.85.3",
     "react-native-safe-area-context": "^5.5.2"
   },
   "devDependencies": {
