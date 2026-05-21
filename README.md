@@ -63,6 +63,15 @@ the `null` update intact. This preserves React's prop-removal semantics for
 This sends a native-driver `transform` update to a view, then removes
 `transform` from props for the same tag.
 
+## Recordings
+
+- [crashed.gif](./crashed.gif)
+- [patched.gif](./patched.gif)
+
+![Crash repro](./crashed.gif)
+
+![Patched repro](./patched.gif)
+
 ## Commands
 
 ```sh
