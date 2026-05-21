@@ -1,35 +1,128 @@
+diff --git a/ReactAndroid/src/main/java/com/facebook/react/animated/PropsAnimatedNode.kt b/ReactAndroid/src/main/java/com/facebook/react/animated/PropsAnimatedNode.kt
+index 6c841bbf2619ae19fda4090522370d9c3263b792..d3a7449819d13e83e8755de4ec30d3243cd43694 100644
+--- a/ReactAndroid/src/main/java/com/facebook/react/animated/PropsAnimatedNode.kt
++++ b/ReactAndroid/src/main/java/com/facebook/react/animated/PropsAnimatedNode.kt
+@@ -12,8 +12,6 @@ import com.facebook.react.bridge.JSApplicationIllegalArgumentException
+ import com.facebook.react.bridge.JavaOnlyMap
+ import com.facebook.react.bridge.ReadableMap
+ import com.facebook.react.bridge.UIManager
+-import com.facebook.react.uimanager.common.UIManagerType
+-import com.facebook.react.uimanager.common.ViewUtil.getUIManagerType
+ 
+ /**
+  * Animated node that represents view properties. There is a special handling logic implemented for
+@@ -71,19 +69,18 @@ internal class PropsAnimatedNode(
+     if (connectedViewTag == -1) {
+       return
+     }
+-    // Don't restore default values in Fabric.
+-    // In Non-Fabric this had the effect of "restore the value to whatever the value was on the
+-    // ShadowNode instead of in the View hierarchy". However, "synchronouslyUpdateViewOnUIThread"
+-    // will not have that impact on Fabric, because the FabricUIManager doesn't have access to the
+-    // ShadowNode layer.
+-    if (getUIManagerType(connectedViewTag) == UIManagerType.FABRIC) {
+-      return
+-    }
+-    val it = propMap.keySetIterator()
+-    while (it.hasNextKey()) {
+-      propMap.putNull(it.nextKey())
++
++    val defaultPropsMap = JavaOnlyMap()
++    for ((key, value) in propNodeMapping) {
++      val node = nativeAnimatedNodesManager.getNodeById(value)
++      requireNotNull(node) { "Mapped property node does not exist" }
++      if (node is StyleAnimatedNode) {
++        node.collectViewDefaultValues(defaultPropsMap)
++      } else {
++        defaultPropsMap.putNull(key)
++      }
+     }
+-    connectedViewUIManager?.synchronouslyUpdateViewOnUIThread(connectedViewTag, propMap)
++    connectedViewUIManager?.synchronouslyUpdateViewOnUIThread(connectedViewTag, defaultPropsMap)
+   }
+ 
+   fun updateView() {
+diff --git a/ReactAndroid/src/main/java/com/facebook/react/animated/StyleAnimatedNode.kt b/ReactAndroid/src/main/java/com/facebook/react/animated/StyleAnimatedNode.kt
+index 05bb06114105a107ea0e6bfeeb41c3d1648e7e1d..539180a8ddacb0c374a7ce4ffe132b4055770b7e 100644
+--- a/ReactAndroid/src/main/java/com/facebook/react/animated/StyleAnimatedNode.kt
++++ b/ReactAndroid/src/main/java/com/facebook/react/animated/StyleAnimatedNode.kt
+@@ -58,5 +58,11 @@ internal class StyleAnimatedNode(
+     }
+   }
+ 
++  fun collectViewDefaultValues(propsMap: JavaOnlyMap) {
++    for (key in propMapping.keys) {
++      propsMap.putNull(key)
++    }
++  }
++
+   override fun prettyPrint(): String = "StyleAnimatedNode[$tag] mPropMapping: $propMapping"
+ }
 diff --git a/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt b/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
-index 9224e19ddf3b1793162ff2ce86f950eff70fb06a..d1fd9e49bdd5833db859b282225a8fa9f5c4dc2a 100644
+index 9224e19ddf3b1793162ff2ce86f950eff70fb06a..e697a54011af1140172eb5f71d32cf9a80a75600 100644
 --- a/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
 +++ b/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
-@@ -618,6 +618,9 @@ internal constructor(
-       modifiedProps.merge(props)
-       val directPropsMap = checkNotNull(tagToSynchronousMountProps[reactTag])
-       overridePropsReadableMap(directPropsMap, modifiedProps)
-+      if (directPropsMap.isEmpty()) {
+@@ -579,13 +579,14 @@ internal constructor(
+   public fun storeSynchronousMountPropsOverride(reactTag: Int, props: ReadableMap): Unit {
+     if (ReactNativeFeatureFlags.overrideBySynchronousMountPropsAtMountingAndroid()) {
+       val propsMap = getMapFromPropsReadableMap(props)
+-      var synchronousMountProps = tagToSynchronousMountProps[reactTag]
+-      if (synchronousMountProps != null) {
+-        synchronousMountProps.putAll(propsMap)
++      val synchronousMountProps = tagToSynchronousMountProps[reactTag] ?: mutableMapOf()
++      removeNullPropsFromPropsReadableMap(props, synchronousMountProps)
++      synchronousMountProps.putAll(propsMap)
++      if (synchronousMountProps.isEmpty()) {
 +        tagToSynchronousMountProps.remove(reactTag)
-+      }
-       viewState.currentProps = ReactStylesDiffMap(modifiedProps)
-     } else {
-       viewState.currentProps = ReactStylesDiffMap(props)
-@@ -1186,11 +1189,18 @@ internal constructor(
+       } else {
+-        synchronousMountProps = propsMap
++        tagToSynchronousMountProps[reactTag] = synchronousMountProps
+       }
+-      tagToSynchronousMountProps[reactTag] = synchronousMountProps
+     }
+   }
+ 
+@@ -1192,7 +1193,10 @@ internal constructor(
+       for ((propKey, propValue) in patchMap) {
+         if (outputReadableMap.hasKey(propKey)) {
+           if (propKey == PROP_TRANSFORM) {
+-            assert(outputReadableMap.getType(propKey) == ReadableType.Array && propValue is List<*>)
++            val outputType = outputReadableMap.getType(propKey)
++            assert(
++                (outputType == ReadableType.Array || outputType == ReadableType.Null) &&
++                    propValue is List<*>)
+             val array = WritableNativeArray()
+             for (item in propValue as List<*>) {
+               if (item is Map<*, *>) {
+@@ -1210,7 +1214,10 @@ internal constructor(
+             }
+             outputReadableMap.putArray(propKey, array)
+           } else if (propKey == PROP_OPACITY) {
+-            assert(outputReadableMap.getType(propKey) == ReadableType.Number && propValue is Number)
++            val outputType = outputReadableMap.getType(propKey)
++            assert(
++                (outputType == ReadableType.Number || outputType == ReadableType.Null) &&
++                    propValue is Number)
+             outputReadableMap.putDouble(propKey, (propValue as Number).toDouble())
+           }
+         }
+@@ -1247,6 +1254,19 @@ internal constructor(
+       return outputMap
      }
  
-     private fun overridePropsReadableMap(
--        patchMap: Map<String, Any>,
-+        patchMap: MutableMap<String, Any>,
-         outputReadableMap: WritableMap,
-     ) {
--      for ((propKey, propValue) in patchMap) {
-+      val iterator = patchMap.entries.iterator()
-+      while (iterator.hasNext()) {
-+        val (propKey, propValue) = iterator.next()
-         if (outputReadableMap.hasKey(propKey)) {
-+          if (outputReadableMap.getType(propKey) == ReadableType.Null) {
-+            iterator.remove()
-+            continue
-+          }
++    private fun removeNullPropsFromPropsReadableMap(
++        readableMap: ReadableMap,
++        outputMap: MutableMap<String, Any>,
++    ) {
++      val iterator = readableMap.keySetIterator()
++      while (iterator.hasNextKey()) {
++        val propKey = iterator.nextKey()
++        if (readableMap.getType(propKey) == ReadableType.Null) {
++          outputMap.remove(propKey)
++        }
++      }
++    }
 +
-           if (propKey == PROP_TRANSFORM) {
-             assert(outputReadableMap.getType(propKey) == ReadableType.Array && propValue is List<*>)
-             val array = WritableNativeArray()
+     // prevents unchecked conversion warn of the <ViewGroup> type
+     private fun getViewGroupManager(viewState: ViewState): IViewGroupManager<View> {
+       val viewManager =

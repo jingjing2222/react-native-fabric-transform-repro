@@ -44,20 +44,30 @@ java.lang.AssertionError: Assertion failed
 
 ## Patch Diff Summary
 
-The patch changes the synchronous override merge behavior in
-`SurfaceMountingManager.kt`.
+The patch separates two different `null` cases in the Android Fabric
+synchronous mount props path.
 
-When a regular Fabric props update contains a key that also exists in the stored
-synchronous override map, and the incoming value is `null`, the patch treats it
-as a real React prop removal:
+For a regular Fabric props update, `transform: null` or `opacity: null` can be a
+stale commit that arrives after Native Animated has already applied a newer
+synchronous value on the UI thread. In that path, the stored synchronous override
+continues to win. The patch allows `ReadableType.Null` as an incoming value
+shape for stored `transform` and `opacity` overrides, then writes the stored
+Native Animated value back into the props update.
 
-- remove that key from the stored synchronous override map;
-- keep the incoming `null` value in the Fabric props update;
-- remove the per-tag override entry when all stored keys have been cleared.
+For an explicit Native Animated restore, `PropsAnimatedNode.restoreDefaultValues`
+now sends a synchronous `null` payload for the animated props it owns. For
+example, an animated style transform restore sends `transform: null`. That sync
+restore path removes the matching key from the stored override map before
+updating the native view, so clearing the animated prop resets the view instead
+of keeping the last animated value forever.
 
-The fix is generic for the current synchronous override map. It is not limited
-to `transform`; it also preserves the same removal semantics for `opacity` and
-future props stored by this path.
+This keeps the feature flag's original intent intact while preserving clear
+semantics:
+
+- Regular Fabric update with `transform: null` or `opacity: null`: treat as a
+  stale value shape and keep the stored Native Animated override.
+- Native Animated restore with `transform: null` or `opacity: null`: treat as an
+  explicit clear signal, remove the stored override, and reset the native view.
 
 ## Repro Apps
 
