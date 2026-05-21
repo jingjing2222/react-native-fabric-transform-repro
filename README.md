@@ -4,7 +4,8 @@ This repository contains two React Native 0.85.3 apps with the same repro
 screen.
 
 - `repro-crash`: crash repro app
-- `repro-patched`: patched comparison app
+- `repro-patched`: patched comparison app, using a Yarn patch for
+  `react-native@0.85.3`
 
 ## Crash Hypothesis
 
@@ -47,6 +48,12 @@ The crash happens because the incoming Fabric update still contains the
 does not handle that removal case before the value reaches Java transform
 handling, so the app can crash while processing the `transform` prop.
 
+The patched app fixes the stale override case generically: when an incoming
+Fabric props update contains a stored synchronous prop key with a `null` value,
+the patch removes that key from the stored synchronous override map and leaves
+the `null` update intact. This preserves React's prop-removal semantics for
+`transform`, `opacity`, and any future props stored in that override map.
+
 ## Repro Steps
 
 1. Run the app.
@@ -60,17 +67,10 @@ This sends a native-driver `transform` update to a view, then removes
 
 ```sh
 cd repro-crash
-npm run android
+yarn android
 ```
 
 ```sh
 cd repro-patched
-npm run android
-```
-
-## Verification
-
-```sh
-npm run lint
-npm test -- --runInBand
+yarn android
 ```

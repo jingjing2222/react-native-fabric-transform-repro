@@ -1,12 +1,22 @@
 diff --git a/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt b/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
-index 9224e19ddf3b1793162ff2ce86f950eff70fb06a..19feb2d12a9396e9c1e1d2e04df25bf67ffbfea3 100644
+index 9224e19ddf3b1793162ff2ce86f950eff70fb06a..55023aff887c7e7f41bb2e1b7c528b380a34f2c2 100644
 --- a/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
 +++ b/ReactAndroid/src/main/java/com/facebook/react/fabric/mounting/SurfaceMountingManager.kt
-@@ -1191,6 +1191,10 @@ internal constructor(
+@@ -1186,11 +1186,18 @@ internal constructor(
+     }
+ 
+     private fun overridePropsReadableMap(
+-        patchMap: Map<String, Any>,
++        patchMap: MutableMap<String, Any>,
+         outputReadableMap: WritableMap,
      ) {
-       for ((propKey, propValue) in patchMap) {
+-      for ((propKey, propValue) in patchMap) {
++      val iterator = patchMap.entries.iterator()
++      while (iterator.hasNext()) {
++        val (propKey, propValue) = iterator.next()
          if (outputReadableMap.hasKey(propKey)) {
 +          if (outputReadableMap.getType(propKey) == ReadableType.Null) {
++            iterator.remove()
 +            continue
 +          }
 +
